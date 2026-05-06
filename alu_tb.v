@@ -1,4 +1,4 @@
-DTH 8
+`define WIDTH 8
 `define VALID_M 2
 `define OPERATION 4
 
@@ -21,6 +21,11 @@ module tb;
 	wire E;
   
   ALU_DESIGN dut(CLK,RST,INP_VALID,MODE,CMD,CE,OPA,OPB,CIN,ERR,RES,OFLOW,COUT,G,L,E);
+  
+// //     ALU dut(OPA,OPB,CIN,CLK,RST,CE,MODE,INP_VALID,CMD,RES,OFLOW,COUT,G,L,E,ERR);
+
+  
+//     alu dut(.clk(CLK),.rst(RST),.inp_valid(INP_VALID),.mode(MODE),.cmd(CMD),.ce(CE),.opa(OPA),.opb(OPB),.cin(CIN),.err(ERR),.res(RES),.oflow(OFLOW),.cout(COUT),.G(G),.L(L),.E(E));
   
   
   initial begin
@@ -72,10 +77,31 @@ module tb;
     RST=1'b0;
   endtask
   
+  
+  
+  task multiplication;
+    MODE = 1'b1;
+    CE=1'b1;
+    RST = 1'b0;
+    INP_VALID = 2'b11;
+    CMD = 9;
+    OPA = 10;
+    OPB = 5;
+      CIN = $urandom();
+    repeat(2) 
+      @(posedge CLK);
+    OPA=8;
+    OPB=9;
+    repeat(3) 
+      @(posedge CLK);
+    
+  endtask
+  
   initial begin
     reset;
     arithmetic_inputs;
     logic_inputs;
+    multiplication;
     repeat(3)
       @(posedge CLK);
     $finish;
