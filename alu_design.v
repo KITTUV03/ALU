@@ -1,3 +1,6 @@
+
+ 
+
 /***************************************************************
 * 
 *   K     K   IIIIIII  TTTTTTT  TTTTTTT  U     U
@@ -39,8 +42,6 @@
 ***************************************************************/
 
 
-
-
 `define VALID_M    2
 `define OPERATION  4
 `define NONE       3'b000
@@ -78,7 +79,6 @@
 `define ROL_A_B    4'hC
 `define ROR_A_B    4'hD
 
-
 module ALU_DESIGN #(parameter WIDTH = 8)
 (
     input                    CLK,
@@ -99,237 +99,220 @@ module ALU_DESIGN #(parameter WIDTH = 8)
     output reg               L,
     output reg               E
 );
-  
-    
+
+    reg  [`VALID_M-1:0]   r_INP_VALID;
+    reg                   r_MODE;
+    reg  [`OPERATION-1:0] r_CMD;
+    reg  [WIDTH-1:0]      r_OPA;
+    reg  [WIDTH-1:0]      r_OPB;
+    reg                   r_CIN;
+
+    localparam WID = $clog2(WIDTH);   
 
     reg signed [2*WIDTH-1:0] signed_result;
-
     reg [2*WIDTH-1:0] mulinc_s1, mulshl_s1;
     reg               mulinc_v1, mulshl_v1;
-  
-  `define wid $clog2(WIDTH)
 
-  always @(posedge CLK or posedge RST) begin
-    if (RST) begin
-        RES <= 0; ERR <= 0;
-        OFLOW <= 0; COUT <= 0;
-        G <= 0; L <= 0; E <= 0;
+    always @(posedge CLK or posedge RST) begin
+        if (RST) begin
+            r_INP_VALID <= 0;
+            r_MODE      <= 0;
+            r_CMD       <= 0;
+            r_OPA       <= 0;
+            r_OPB       <= 0;
+            r_CIN       <= 0;
 
-        mulinc_s1 <= 0; mulinc_v1 <= 0;
-        mulshl_s1 <= 0; mulshl_v1 <= 0;
-    end
+            RES   <= 0; ERR   <= 0;
+            OFLOW <= 0; COUT  <= 0;
+            G <= 0; L <= 0; E <= 0;
 
-    else if (CE) begin
+            mulinc_s1 <= 0; mulinc_v1 <= 0;
+            mulshl_s1 <= 0; mulshl_v1 <= 0;
+        end
 
-        ERR   <= 0;
-        OFLOW <= 0;
-        COUT  <= 0;
-        {G,L,E} <= `NONE;
+        else if (CE) begin
 
-     
-      if (mulinc_v1 && CMD == `MUL_INC) begin
-            RES <= mulinc_s1;
-            mulinc_v1 <= 0;   // clear AFTER use
-        end 
-      else if (mulshl_v1 && CMD == `MUL_SHL) begin
-            RES <= mulshl_s1;
-            mulshl_v1 <= 0;   // clear AFTER use
-        end 
+            r_INP_VALID <= INP_VALID;
+            r_MODE      <= MODE;
+            r_CMD       <= CMD;
+            r_OPA       <= OPA;
+            r_OPB       <= OPB;
+            r_CIN       <= CIN;
 
-      
-        else begin
+            ERR     <= 0;
+            OFLOW   <= 0;
+            COUT    <= 0;
+            {G,L,E} <= `NONE;
 
-          if (MODE) begin
-              case (CMD)
-                  
-                    `ADD: begin
-                        {COUT,RES[WIDTH-1:0]} <= (INP_VALID==`V_BOTH) ? (OPA+OPB) : {COUT,RES[WIDTH-1:0]};
-                        RES     <= (INP_VALID==`V_BOTH) ? (OPA+OPB) : RES;
-                        OFLOW   <= 0;  {G,L,E} <= `NONE;
-                        ERR     <= ~(INP_VALID==`V_BOTH);
-                    end
-
-                    `SUB: begin
-                        RES     <= (INP_VALID==`V_BOTH) ? (OPA-OPB) : RES;
-                        COUT    <= 0;  
-                        OFLOW   <= (OPB > OPA);
-                        {G,L,E} <= `NONE;
-                        ERR     <= ~(INP_VALID==`V_BOTH);
-                    end
-
-                    `ADD_CIN: begin
-                        {COUT,RES[WIDTH-1:0]} <= (INP_VALID==`V_BOTH) ? (OPA+OPB+CIN) : {COUT,RES[WIDTH-1:0]};
-                        RES     <= (INP_VALID==`V_BOTH) ? (OPA+OPB+CIN) : RES;
-                        OFLOW   <= 0;  {G,L,E} <= `NONE;
-                        ERR     <= ~(INP_VALID==`V_BOTH);
-                    end
-
-                    `SUB_CIN: begin
-                        RES     <= (INP_VALID==`V_BOTH) ? (OPA-OPB-CIN) : RES;
-                      COUT    <= 0;  
-                      OFLOW <= ({1'b0,OPA} < ({1'b0,OPB} + CIN));  
-                                              
-                      {G,L,E} <= `NONE;
-                        ERR     <= ~(INP_VALID==`V_BOTH);
-                    end
-
-                    `INC_A: begin
-                        RES  <= (INP_VALID==`V_BOTH||INP_VALID==`V_A) ? OPA+1 : RES;
-                        COUT <= 0;  OFLOW <= 0;  {G,L,E} <= `NONE;
-                        ERR  <= ~(INP_VALID==`V_BOTH||INP_VALID==`V_A);
-                    end
-
-                    `DEC_A: begin
-                        RES  <= (INP_VALID==`V_BOTH||INP_VALID==`V_A) ? OPA-1 : RES;
-                        COUT <= 0;  OFLOW <= 0;  {G,L,E} <= `NONE;
-                        ERR  <= ~(INP_VALID==`V_BOTH||INP_VALID==`V_A);
-                    end
-
-                    `INC_B: begin
-                        RES  <= (INP_VALID==`V_BOTH||INP_VALID==`V_B) ? OPB+1 : RES;
-                        COUT <= 0;  OFLOW <= 0;  {G,L,E} <= `NONE;
-                        ERR  <= ~(INP_VALID==`V_BOTH||INP_VALID==`V_B);
-                    end
-
-                    `DEC_B: begin
-                        RES  <= (INP_VALID==`V_BOTH||INP_VALID==`V_B) ? OPB-1 : RES;
-                        COUT <= 0;  OFLOW <= 0;  {G,L,E} <= `NONE;
-                        ERR  <= ~(INP_VALID==`V_BOTH||INP_VALID==`V_B);
-                    end
-
-                    `CMP: begin
-                        RES     <= 0;
-                        COUT    <= 0;  OFLOW <= 0;
-                        {G,L,E} <= {(OPA>OPB),(OPA<OPB),(OPA==OPB)};
-                        ERR     <= ~(INP_VALID==`V_BOTH);
-                    end
-
-                    `MUL_INC: begin
-                      if(CMD == `MUL_INC)
-                        begin
-                      if (INP_VALID==`V_BOTH) begin
-                            mulinc_s1 <= (OPA+1)*(OPB+1);
-                            mulinc_v1 <= 1;
-                        end else ERR <= 1;
-                    end
-                  else
-                    begin
-                      RES <= 0;
-                    end
-                    end
-
-                    `MUL_SHL: begin
-                        if (INP_VALID==`V_BOTH) begin
-                            mulshl_s1 <= (OPA<<1)*OPB;
-                            mulshl_v1 <= 1;
-                        end else ERR <= 1;
-                    end
-                  
-                  
-                    `SADD: begin
-                        if (INP_VALID == `V_BOTH) begin
-                            signed_result = $signed({1'b0,OPA}) + $signed({1'b0,OPB});
-                            COUT  <= signed_result[WIDTH];
-                            RES   <= {{WIDTH{signed_result[WIDTH-1]}},signed_result[WIDTH-1:0]};
-                            OFLOW <= (OPA[WIDTH-1]==OPB[WIDTH-1]) &&
-                                     (signed_result[WIDTH-1]!=OPA[WIDTH-1]);
-                            G <= ($signed(OPA) >  $signed(OPB));
-                            L <= ($signed(OPA) <  $signed(OPB));
-                            E <= ($signed(OPA) == $signed(OPB));
-                        end else begin
-                            RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
-                        end
-                        ERR <= ~(INP_VALID==`V_BOTH);
-                    end
-
-                    `SSUB: begin
-                        if (INP_VALID == `V_BOTH) begin
-                            signed_result = $signed({1'b0,OPA}) - $signed({1'b0,OPB});
-                            COUT  <= signed_result[WIDTH];
-                            RES   <= {{WIDTH{signed_result[WIDTH-1]}},signed_result[WIDTH-1:0]};
-                            OFLOW <= (OPA[WIDTH-1]!=OPB[WIDTH-1]) &&
-                                     (signed_result[WIDTH-1]!=OPA[WIDTH-1]);
-                            G <= ($signed(OPA) >  $signed(OPB));
-                            L <= ($signed(OPA) <  $signed(OPB));
-                            E <= ($signed(OPA) == $signed(OPB));
-                        end else begin
-                            RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
-                        end
-                        ERR <= ~(INP_VALID==`V_BOTH);
-                    end
-
-                    default:
-                      begin
-                        RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
-                    end
-
-
-                endcase
+            if (mulinc_v1 && r_CMD == `MUL_INC) begin
+                RES       <= mulinc_s1;
+                mulinc_v1 <= 0;
+            end
+            else if (mulshl_v1 && r_CMD == `MUL_SHL) begin
+                RES       <= mulshl_s1;
+                mulshl_v1 <= 0;
             end
 
             else begin
-              case (CMD)
-                     `AND:    begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH)?(OPA&OPB)  :0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH);end
-                    `NAND:   begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH)?~(OPA&OPB) :0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH);end
-                    `OR:     begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH)?(OPA|OPB)  :0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH);end
-                    `NOR:    begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH)?~(OPA|OPB) :0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH);end
-                    `XOR:    begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH)?(OPA^OPB)  :0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH);end
-                    `XNOR:   begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH)?~(OPA^OPB) :0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH);end
-                    `NOT_A:  begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH||INP_VALID==`V_A)?~OPA  :0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH||INP_VALID==`V_A);end
-                    `NOT_B:  begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH||INP_VALID==`V_B)?~OPB  :0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH||INP_VALID==`V_B);end
-                    `SHR1_A: begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH||INP_VALID==`V_A)?OPA>>1:0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH||INP_VALID==`V_A);end
-                    `SHL1_A: begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH||INP_VALID==`V_A)?OPA<<1:0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH||INP_VALID==`V_A);end
-                    `SHR1_B: begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH||INP_VALID==`V_B)?OPB>>1:0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH||INP_VALID==`V_B);end
-                    `SHL1_B: begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH||INP_VALID==`V_B)?OPB<<1:0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH||INP_VALID==`V_B);end
 
-                `ROL_A_B: begin
-                        if (INP_VALID == `V_BOTH) begin
-                            if (|OPB[WIDTH-1:`wid]) begin
-                                ERR <= 1;  
+                if (r_MODE) begin
+                    case (r_CMD)
+
+                        `ADD: begin
+                            {COUT, RES[WIDTH-1:0]} <= (r_INP_VALID==`V_BOTH) ? (r_OPA + r_OPB) : {COUT, RES[WIDTH-1:0]};
+                            RES   <= (r_INP_VALID==`V_BOTH) ? (r_OPA + r_OPB) : RES;
+                            ERR   <= ~(r_INP_VALID==`V_BOTH);
+                        end
+
+                        `SUB: begin
+                            RES   <= (r_INP_VALID==`V_BOTH) ? (r_OPA - r_OPB) : RES;
+                            OFLOW <= (r_OPB > r_OPA);
+                            ERR   <= ~(r_INP_VALID==`V_BOTH);
+                        end
+
+                        `ADD_CIN: begin
+                            {COUT, RES[WIDTH-1:0]} <= (r_INP_VALID==`V_BOTH) ? (r_OPA + r_OPB + r_CIN) : {COUT, RES[WIDTH-1:0]};
+                            RES   <= (r_INP_VALID==`V_BOTH) ? (r_OPA + r_OPB + r_CIN) : RES;
+                            ERR   <= ~(r_INP_VALID==`V_BOTH);
+                        end
+
+                        `SUB_CIN: begin
+                            RES   <= (r_INP_VALID==`V_BOTH) ? (r_OPA - r_OPB - r_CIN) : RES;
+                            OFLOW <= ({1'b0,r_OPA} < ({1'b0,r_OPB} + r_CIN));
+                            ERR   <= ~(r_INP_VALID==`V_BOTH);
+                        end
+
+                        `INC_A: begin
+                            RES <= (r_INP_VALID==`V_BOTH || r_INP_VALID==`V_A) ? r_OPA+1 : RES;
+                            ERR <= ~(r_INP_VALID==`V_BOTH || r_INP_VALID==`V_A);
+                        end
+
+                        `DEC_A: begin
+                            RES <= (r_INP_VALID==`V_BOTH || r_INP_VALID==`V_A) ? r_OPA-1 : RES;
+                            ERR <= ~(r_INP_VALID==`V_BOTH || r_INP_VALID==`V_A);
+                        end
+
+                        `INC_B: begin
+                            RES <= (r_INP_VALID==`V_BOTH || r_INP_VALID==`V_B) ? r_OPB+1 : RES;
+                            ERR <= ~(r_INP_VALID==`V_BOTH || r_INP_VALID==`V_B);
+                        end
+
+                        `DEC_B: begin
+                            RES <= (r_INP_VALID==`V_BOTH || r_INP_VALID==`V_B) ? r_OPB-1 : RES;
+                            ERR <= ~(r_INP_VALID==`V_BOTH || r_INP_VALID==`V_B);
+                        end
+
+                        `CMP: begin
+                            RES     <= 0;
+                            {G,L,E} <= {(r_OPA>r_OPB),(r_OPA<r_OPB),(r_OPA==r_OPB)};
+                            ERR     <= ~(r_INP_VALID==`V_BOTH);
+                        end
+
+                        `MUL_INC: begin
+                            if (r_INP_VALID==`V_BOTH) begin
+                                mulinc_s1 <= (r_OPA+1)*(r_OPB+1);
+                                mulinc_v1 <= 1;
+                            end else ERR <= 1;
+                        end
+
+                        `MUL_SHL: begin
+                            if (r_INP_VALID==`V_BOTH) begin
+                                mulshl_s1 <= (r_OPA<<1)*r_OPB;
+                                mulshl_v1 <= 1;
+                            end else ERR <= 1;
+                        end
+
+                        `SADD: begin
+                            if (r_INP_VALID == `V_BOTH) begin
+                                signed_result = $signed({1'b0,r_OPA}) + $signed({1'b0,r_OPB});
+                                COUT  <= signed_result[WIDTH];
+                                RES   <= {{WIDTH{signed_result[WIDTH-1]}},signed_result[WIDTH-1:0]};
+                                OFLOW <= (r_OPA[WIDTH-1]==r_OPB[WIDTH-1]) &&
+                                         (signed_result[WIDTH-1]!=r_OPA[WIDTH-1]);
+                                G <= ($signed(r_OPA) >  $signed(r_OPB));
+                                L <= ($signed(r_OPA) <  $signed(r_OPB));
+                                E <= ($signed(r_OPA) == $signed(r_OPB));
                             end else begin
-                                RES[WIDTH-1:0] <= (OPA << OPB[`wid-1:0]) | (OPA >> (WIDTH - OPB[`wid-1:0]));
-                                RES[2*WIDTH-1:WIDTH] <= 0;
-                                ERR <= 0;
+                                RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
                             end
-                        end else begin
-                            RES <= 0;
-                            ERR <= 1;
+                            ERR <= ~(r_INP_VALID==`V_BOTH);
                         end
-                        OFLOW <= 0;
-                        COUT  <= 0;
-                        {G,L,E} <= `NONE;
-                    end
-                  
-                  
 
-                `ROR_A_B: begin
-                    if (INP_VALID == `V_BOTH) begin
-                        if (|OPB[WIDTH-1:`wid]) begin
-                            ERR <= 1;
-                        end else begin
-                            RES[WIDTH-1:0] <= (OPA >> OPB[`wid-1:0]) | (OPA << (WIDTH - OPB[`wid-1:0]));
-                            RES[2*WIDTH-1:WIDTH] <= 0;
-                            ERR <= 0;
+                        `SSUB: begin
+                            if (r_INP_VALID == `V_BOTH) begin
+                                signed_result = $signed({1'b0,r_OPA}) - $signed({1'b0,r_OPB});
+                                COUT  <= signed_result[WIDTH];
+                                RES   <= {{WIDTH{signed_result[WIDTH-1]}},signed_result[WIDTH-1:0]};
+                                OFLOW <= (r_OPA[WIDTH-1]!=r_OPB[WIDTH-1]) &&
+                                         (signed_result[WIDTH-1]!=r_OPA[WIDTH-1]);
+                                G <= ($signed(r_OPA) >  $signed(r_OPB));
+                                L <= ($signed(r_OPA) <  $signed(r_OPB));
+                                E <= ($signed(r_OPA) == $signed(r_OPB));
+                            end else begin
+                                RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
+                            end
+                            ERR <= ~(r_INP_VALID==`V_BOTH);
                         end
-                    end else begin
-                        RES <= 0;
-                        ERR <= 1;
-                    end
-                    OFLOW <= 0;
-                    COUT  <= 0;
-                    {G,L,E} <= `NONE;
+
+                        default: begin
+                            RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
+                        end
+
+                    endcase
                 end
-                  
-                  
-                                    default: begin
-                        RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
-                    end
-                endcase
-            end
 
+                else begin
+                    case (r_CMD)
+                        `AND:    begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?(r_OPA&r_OPB)  :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
+                        `NAND:   begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?~(r_OPA&r_OPB) :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
+                        `OR:     begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?(r_OPA|r_OPB)  :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
+                        `NOR:    begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?~(r_OPA|r_OPB) :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
+                        `XOR:    begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?(r_OPA^r_OPB)  :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
+                        `XNOR:   begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?~(r_OPA^r_OPB) :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
+                        `NOT_A:  begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A)?~r_OPA  :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A);end
+                        `NOT_B:  begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B)?~r_OPB  :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B);end
+                        `SHR1_A: begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A)?r_OPA>>1:0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A);end
+                        `SHL1_A: begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A)?r_OPA<<1:0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A);end
+                        `SHR1_B: begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B)?r_OPB>>1:0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B);end
+                        `SHL1_B: begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B)?r_OPB<<1:0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B);end
+
+                        `ROL_A_B: begin
+                            if (r_INP_VALID == `V_BOTH) begin
+                                if (|r_OPB[WIDTH-1:WID]) begin
+                                    ERR <= 1;
+                                end else begin
+                                    RES[WIDTH-1:0]       <= (r_OPA << r_OPB[WID-1:0]) | (r_OPA >> (WIDTH - r_OPB[WID-1:0]));
+                                    RES[2*WIDTH-1:WIDTH] <= 0;
+                                    ERR <= 0;
+                                end
+                            end else begin
+                                RES <= 0; ERR <= 1;
+                            end
+                            OFLOW <= 0; COUT <= 0; {G,L,E} <= `NONE;
+                        end
+
+                        `ROR_A_B: begin
+                            if (r_INP_VALID == `V_BOTH) begin
+                                if (|r_OPB[WIDTH-1:WID]) begin
+                                    ERR <= 1;
+                                end else begin
+                                    RES[WIDTH-1:0]       <= (r_OPA >> r_OPB[WID-1:0]) | (r_OPA << (WIDTH - r_OPB[WID-1:0]));
+                                    RES[2*WIDTH-1:WIDTH] <= 0;
+                                    ERR <= 0;
+                                end
+                            end else begin
+                                RES <= 0; ERR <= 1;
+                            end
+                            OFLOW <= 0; COUT <= 0; {G,L,E} <= `NONE;
+                        end
+
+                        default: begin
+                            RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
+                        end
+                    endcase
+                end
+            end
         end
     end
-end
 endmodule
-
     

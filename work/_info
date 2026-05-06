@@ -1,0 +1,72 @@
+m255
+K4
+z2
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 d/fetools/work_area/frontend/Batch_11/Kittu_Patel/Verilog/Project/ALU_PROJECT
+T_opt
+!s110 1778086751
+VNm;EUXDf6[6V?5jN5;HGF2
+04 2 4 work tb fast 0
+=1-6805caf5892e-69fb735e-e60d8-27799
+Z1 o-quiet -auto_acc_if_foreign -work work
+Z2 tCvgOpt 0
+n@_opt
+Z3 OE;O;10.6c;65
+R0
+T_opt1
+!s110 1778092659
+VC6lH7YU3m9^8:nPA3lnHL2
+04 10 4 work ALU_DESIGN fast 0
+=1-6805caf5892e-69fb8a72-a4c7a-2a7ef
+R1
+R2
+n@_opt1
+R3
+vALU_DESIGN
+Z4 !s110 1778092244
+!i10b 1
+!s100 VTTWggGH2CRcb<C`9@eT[1
+ITYZN;8P6iMJoIbl67>d0z2
+Z5 VDg1SIo80bB@j0V0VzS_@n1
+R0
+w1778086338
+8alu_design.v
+Falu_design.v
+L0 83
+Z6 OE;L;10.6c;65
+r1
+!s85 0
+31
+Z7 !s108 1778092244.000000
+Z8 !s107 alu_tb.v|alu_design.v|
+Z9 !s90 alu_design.v|
+!i113 0
+Z10 o-L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R2
+n@a@l@u_@d@e@s@i@g@n
+vtb
+R4
+!i10b 1
+!s100 3YQ3Y_keNc0_;1Q2b<JH:3
+I1IlKPOh;72O7gKhhz8d_70
+R5
+R0
+w1778086697
+8alu_tb.v
+Falu_tb.v
+L0 5
+R6
+r1
+!s85 0
+31
+R7
+R8
+R9
+!i113 0
+R10
+R2
