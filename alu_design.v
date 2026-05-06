@@ -1,12 +1,44 @@
-/*************************************************
-*   K     K   IIIIIII  TTTTTTT  TTTTTTT  U     U  *
-*   K   K       I         T        T     U     U  *
-*   K K         I         T        T     U     U  *
-*   KK          I         T        T     U     U  *
-*   K K         I         T        T     U     U  *
-*   K   K       I         T        T     U     U  *
-*   K     K   IIIIIII     T        T      UUUUU   *
-*************************************************/
+/***************************************************************
+* 
+*   K     K   IIIIIII  TTTTTTT  TTTTTTT  U     U
+*   K   K       I         T        T     U     U
+*   K K         I         T        T     U     U
+*   KK          I         T        T     U     U
+*   K K         I         T        T     U     U
+*   K   K       I         T        T     U     U
+*   K     K   IIIIIII     T        T      UUUUU
+*
+***************************************************************/
+
+/***************************************************************
+*  Author        : Kittu Patel
+*  Company       : Mirafra Software Technologies Pvt. Ltd.
+*  Project Name  : Parameterized ALU Design
+*
+*  Description   :
+*  This project implements a parameterized Arithmetic Logic Unit
+*  (ALU) supporting both arithmetic and logical operations.
+*  Features include:
+*    - Arithmetic ops: ADD, SUB, ADD with CIN, SUB with CIN
+*    - Increment/Decrement operations
+*    - Comparison (G, L, E flags)
+*    - Signed operations with overflow detection
+*    - Logical ops: AND, OR, XOR, NOT, shifts, rotate
+*    - Pipelined multiplication operations:
+*         • MUL_INC  : (OPA+1)*(OPB+1)
+*         • MUL_SHL  : (OPA<<1)*OPB
+*    - Valid signal based input control
+*    - Clock enable (CE) based operation
+*
+*  Start Date    : [04-05-2026]
+*  End Date      : [05-05-2026]
+*
+*  Notes         :
+*  - Supports parameterized data width
+*  - Suitable for ASIC/FPGA design and UVM verification
+***************************************************************/
+
+
 
 
 `define VALID_M    2
@@ -77,7 +109,7 @@ module ALU_DESIGN #(parameter WIDTH = 8)
   
   `define wid $clog2(WIDTH)
 
-   always @(posedge CLK or posedge RST) begin
+  always @(posedge CLK or posedge RST) begin
     if (RST) begin
         RES <= 0; ERR <= 0;
         OFLOW <= 0; COUT <= 0;
@@ -107,8 +139,8 @@ module ALU_DESIGN #(parameter WIDTH = 8)
       
         else begin
 
-            if (MODE) begin
-                case (CMD)
+          if (MODE) begin
+              case (CMD)
                   
                     `ADD: begin
                         {COUT,RES[WIDTH-1:0]} <= (INP_VALID==`V_BOTH) ? (OPA+OPB) : {COUT,RES[WIDTH-1:0]};
@@ -236,7 +268,7 @@ module ALU_DESIGN #(parameter WIDTH = 8)
             end
 
             else begin
-                case (CMD)
+              case (CMD)
                      `AND:    begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH)?(OPA&OPB)  :0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH);end
                     `NAND:   begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH)?~(OPA&OPB) :0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH);end
                     `OR:     begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH)?(OPA|OPB)  :0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH);end
@@ -250,35 +282,46 @@ module ALU_DESIGN #(parameter WIDTH = 8)
                     `SHR1_B: begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH||INP_VALID==`V_B)?OPB>>1:0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH||INP_VALID==`V_B);end
                     `SHL1_B: begin RES[WIDTH-1:0]<=(INP_VALID==`V_BOTH||INP_VALID==`V_B)?OPB<<1:0;OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(INP_VALID==`V_BOTH||INP_VALID==`V_B);end
 
-                    `ROL_A_B: begin
-                      case(OPB[`wid-1:0])
-                            `NONE  :RES<=(INP_VALID==`V_BOTH)? OPA                                  :0;
-                            3'b001 :RES<=(INP_VALID==`V_BOTH)?{OPA[WIDTH-2:0],OPA[WIDTH-1]}         :0;
-                            3'b010 :RES<=(INP_VALID==`V_BOTH)?{OPA[WIDTH-3:0],OPA[WIDTH-1:WIDTH-2]} :0;
-                            3'b011 :RES<=(INP_VALID==`V_BOTH)?{OPA[WIDTH-4:0],OPA[WIDTH-1:WIDTH-3]} :0;
-                            3'b100 :RES<=(INP_VALID==`V_BOTH)?{OPA[WIDTH-5:0],OPA[WIDTH-1:WIDTH-4]} :0;
-                            3'b101 :RES<=(INP_VALID==`V_BOTH)?{OPA[WIDTH-6:0],OPA[WIDTH-1:WIDTH-5]} :0;
-                            3'b110 :RES<=(INP_VALID==`V_BOTH)?{OPA[WIDTH-7:0],OPA[WIDTH-1:WIDTH-6]} :0;
-                            3'b111 :RES<=(INP_VALID==`V_BOTH)?{OPA[WIDTH-8],  OPA[WIDTH-1:WIDTH-7]} :0;
-                        endcase
-                        OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=!(OPB[7:4]==0);
+                `ROL_A_B: begin
+                        if (INP_VALID == `V_BOTH) begin
+                            if (|OPB[WIDTH-1:`wid]) begin
+                                ERR <= 1;  
+                            end else begin
+                                RES[WIDTH-1:0] <= (OPA << OPB[`wid-1:0]) | (OPA >> (WIDTH - OPB[`wid-1:0]));
+                                RES[2*WIDTH-1:WIDTH] <= 0;
+                                ERR <= 0;
+                            end
+                        end else begin
+                            RES <= 0;
+                            ERR <= 1;
+                        end
+                        OFLOW <= 0;
+                        COUT  <= 0;
+                        {G,L,E} <= `NONE;
                     end
+                  
+                  
 
-                    `ROR_A_B: begin
-                        case(OPB[`wid-1:0])
-                            `NONE  :RES<=(INP_VALID==`V_BOTH)? OPA                        :0;
-                            3'b001 :RES<=(INP_VALID==`V_BOTH)?{OPA[0],  OPA[WIDTH-1:1]}   :0;
-                            3'b010 :RES<=(INP_VALID==`V_BOTH)?{OPA[1:0],OPA[WIDTH-1:2]}   :0;
-                            3'b011 :RES<=(INP_VALID==`V_BOTH)?{OPA[2:0],OPA[WIDTH-1:3]}   :0;
-                            3'b100 :RES<=(INP_VALID==`V_BOTH)?{OPA[3:0],OPA[WIDTH-1:4]}   :0;
-                            3'b101 :RES<=(INP_VALID==`V_BOTH)?{OPA[4:0],OPA[WIDTH-1:5]}   :0;
-                            3'b110 :RES<=(INP_VALID==`V_BOTH)?{OPA[5:0],OPA[WIDTH-1:6]}   :0;
-                            3'b111 :RES<=(INP_VALID==`V_BOTH)?{OPA[6:0],OPA[WIDTH-1:7]}   :0;
-                        endcase
-                        OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=!(OPB[7:4]==0);
+                `ROR_A_B: begin
+                    if (INP_VALID == `V_BOTH) begin
+                        if (|OPB[WIDTH-1:`wid]) begin
+                            ERR <= 1;
+                        end else begin
+                            RES[WIDTH-1:0] <= (OPA >> OPB[`wid-1:0]) | (OPA << (WIDTH - OPB[`wid-1:0]));
+                            RES[2*WIDTH-1:WIDTH] <= 0;
+                            ERR <= 0;
+                        end
+                    end else begin
+                        RES <= 0;
+                        ERR <= 1;
                     end
-
-                    default: begin
+                    OFLOW <= 0;
+                    COUT  <= 0;
+                    {G,L,E} <= `NONE;
+                end
+                  
+                  
+                                    default: begin
                         RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
                     end
                 endcase
@@ -289,3 +332,4 @@ module ALU_DESIGN #(parameter WIDTH = 8)
 end
 endmodule
 
+    
