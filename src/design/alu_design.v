@@ -226,7 +226,6 @@ module ALU_DESIGN #(parameter WIDTH = 8)
                         `SADD: begin
                             if (r_INP_VALID == `V_BOTH) begin
                                 signed_result = $signed({1'b0,r_OPA}) + $signed({1'b0,r_OPB});
-                                COUT  <= signed_result[WIDTH];
                                 RES   <= {{WIDTH{signed_result[WIDTH-1]}},signed_result[WIDTH-1:0]};
                                 OFLOW <= (r_OPA[WIDTH-1]==r_OPB[WIDTH-1]) &&
                                          (signed_result[WIDTH-1]!=r_OPA[WIDTH-1]);
@@ -242,7 +241,6 @@ module ALU_DESIGN #(parameter WIDTH = 8)
                         `SSUB: begin
                             if (r_INP_VALID == `V_BOTH) begin
                                 signed_result = $signed({1'b0,r_OPA}) - $signed({1'b0,r_OPB});
-                                COUT  <= signed_result[WIDTH];
                                 RES   <= {{WIDTH{signed_result[WIDTH-1]}},signed_result[WIDTH-1:0]};
                                 OFLOW <= (r_OPA[WIDTH-1]!=r_OPB[WIDTH-1]) &&
                                          (signed_result[WIDTH-1]!=r_OPA[WIDTH-1]);
