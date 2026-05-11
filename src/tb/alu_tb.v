@@ -37,7 +37,7 @@
 *----------------------------------------------------------------------------------------
 *
 *****************************************************************************************/
- `include "alu_design.v"
+// `include "alu_design.v"
 `define WIDTH            8
 `define VALID_M          2
 `define OPERATION        4
@@ -47,8 +47,7 @@
 `define WID              3
 
 
-`define RAND_RANGE(max,min) (($random % ((max)-(min)+1)) + (min))
-
+`define RAND_RANGE(max,min) (($unsigned($random) % ((max)-(min)+1)) + (min))
 `define NONE       3'b000
 `define V_NONE     2'b00
 `define V_A        2'b01
@@ -130,7 +129,7 @@ module tb;
     integer cmd_i;
 
 
-    alu #(.WIDTH(`WIDTH)) dut (
+    ALU_DESIGN #(.WIDTH(`WIDTH)) dut (
         .CLK      (CLK),
         .RST      (RST),
         .INP_VALID(INP_VALID),
@@ -437,10 +436,10 @@ module tb;
     end
     endtask
 
-
     task multiplication;
+
     begin
-      repeat(160)
+        repeat(80)
         begin
             RST       = 1'b0;
             INP_VALID = `V_BOTH;
@@ -448,8 +447,11 @@ module tb;
             CE        = 1'b1;
             OPA       = $random;
             OPB       = $random;
-            CMD       = `RAND_RANGE(10, 9);   // MUL_INC or MUL_SHL
+
+            CMD       = `RAND_RANGE(10, 9);   // Generates only 9 or 10
+
             CIN       = $random;
+
             repeat(2)
             begin
                 `CLOCK_DELAY;
@@ -457,7 +459,6 @@ module tb;
         end
     end
     endtask
-
 
  task direct_cases;
     begin
@@ -666,12 +667,12 @@ end
                                 mul_s1_valid <= 1;
                                 mul_s1_cmd   <= `MUL_INC;
                               {EXP_G,EXP_L,EXP_E} <= `NONE;
-                              EXP_RES <= {2*`WIDTH{1'bx}};            //chnage
+                              EXP_RES <= {2*`WIDTH{1'b0}};            //chnage
 
 
                             end else begin
                                 EXP_ERR <= 1;
-                              EXP_RES <= {2*`WIDTH{1'bx}};
+                              EXP_RES <= {2*`WIDTH{1'b0}};
 
                             end
                         end
@@ -683,10 +684,10 @@ end
                                 mul_s1_valid <= 1;
                                 mul_s1_cmd   <= `MUL_SHL;
                                 {EXP_G,EXP_L,EXP_E} <= `NONE;
-                                 EXP_RES <= {2*`WIDTH{1'bx}}; //chnage
+                              EXP_RES <= {2*`WIDTH{1'b0}}; //chnage
                                 end else begin
                                 EXP_ERR <= 1;
-                                EXP_RES <= {2*`WIDTH{1'bx}};
+                                  EXP_RES <= {2*`WIDTH{1'b0}};
 
                             end
                         end
@@ -828,11 +829,13 @@ end
 
 
                           `ROL_A_B: begin
-
                             rot_amt = r_OPB[`WID-1:0];
 
-                            if (|r_OPB[`WIDTH-1:`WID])
+                            if (|r_OPB[`WIDTH-1:`WID+1]) begin
                                 EXP_ERR <= 1;
+                                EXP_RES <= 0;
+                            end
+
                             else
                                 EXP_ERR <= 0;
 
@@ -848,14 +851,16 @@ end
                         end
 
 
-                                                  `ROR_A_B: begin
+                           `ROR_A_B: begin
 
                                 rot_amt = r_OPB[`WID-1:0];
 
-                                if (|r_OPB[`WIDTH-1:`WID])
+                             if (|r_OPB[`WIDTH-1:`WID+1]) begin
                                     EXP_ERR <= 1;
+                                    EXP_RES <= 0;
+                             end
+
                                 else
-                                    EXP_ERR <= 0;
 
                                 EXP_RES[`WIDTH-1:0] <=
                                     (r_OPA >> rot_amt) |
@@ -921,12 +926,12 @@ end
         pass_cnt = 0;
         fail_cnt = 0;
         reset;
-        valid_arithmetic_inputs;
-        valid_logic_inputs;
-        unknown_input;
-       clock_enable;
-       invalid_input;
-       reset;
+         valid_arithmetic_inputs;
+		  valid_logic_inputs;
+         unknown_input;
+        clock_enable;
+        invalid_input;
+        reset;
         multiplication;
        direct_cases;
 
