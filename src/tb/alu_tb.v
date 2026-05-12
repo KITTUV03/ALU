@@ -892,10 +892,10 @@ end
             #1;
 
             if (RES !== EXP_RES)
-                $display("%-6s  @%0t | MODE=%b CMD=%02h OPA=%3d OPB=%3d | RES=%0d  EXP_RES=%0d",
+				$display("@%0t | MODE=%b CMD=%02h OPA=%0d OPB=%0d | RES=%0d  EXP_RES=%0d",
                          "FAIL", $time, r_MODE, r_CMD, r_OPA, r_OPB, RES, EXP_RES);
             else
-                $display("%-6s  @%0t | MODE=%b CMD=%02h OPA=%3d OPB=%3d | RES=%0d",
+				$display(" @%0t | MODE=%b CMD=%0h OPA=%0d OPB=%0d | RES=%0d",
                          "PASS", $time, r_MODE, r_CMD, r_OPA, r_OPB, RES);
 
             if (ERR !== EXP_ERR)
