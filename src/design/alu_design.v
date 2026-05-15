@@ -41,10 +41,9 @@
 // *  - Supports parameterized data width
 // *  - Suitable for ASIC/FPGA design and UVM verification
 // ***************************************************************/
-
-
 `define VALID_M    2
 `define OPERATION  4
+
 `define NONE       3'b000
 `define V_NONE     2'b00
 `define V_A        2'b01
@@ -80,6 +79,7 @@
 `define ROL_A_B    4'hC
 `define ROR_A_B    4'hD
 
+
 module ALU_DESIGN #(parameter WIDTH = 8)
 (
     input                    CLK,
@@ -101,6 +101,7 @@ module ALU_DESIGN #(parameter WIDTH = 8)
     output reg               E
 );
 
+   
     reg  [`VALID_M-1:0]   r_INP_VALID;
     reg                   r_MODE;
     reg  [`OPERATION-1:0] r_CMD;
@@ -108,182 +109,612 @@ module ALU_DESIGN #(parameter WIDTH = 8)
     reg  [WIDTH-1:0]      r_OPB;
     reg                   r_CIN;
 
-    localparam WID = $clog2(WIDTH);   
-    reg        [WIDTH:0]     rot_amt;
+   
 
-    reg signed [2*WIDTH-1:0] signed_result;
-    reg [2*WIDTH-1:0] mulinc_s1, mulshl_s1;
-    reg               mulinc_v1, mulshl_v1;
+    localparam WID = $clog2(WIDTH);
 
-    always @(posedge CLK or posedge RST) begin
-        if (RST) begin
-            r_INP_VALID <= 0;
-            r_MODE      <= 0;
-            r_CMD       <= 0;
-            r_OPA       <= 0;
-            r_OPB       <= 0;
-            r_CIN       <= 0;
+    reg signed [WIDTH:0] signed_result;
 
-            RES   <= 0; ERR   <= 0;
-            OFLOW <= 0; COUT  <= 0;
-            G <= 0; L <= 0; E <= 0;
+    reg [2*WIDTH-1:0] temp_sum;
 
-            mulinc_s1 <= 0; mulinc_v1 <= 0;
-            mulshl_s1 <= 0; mulshl_v1 <= 0;
+    reg [WIDTH:0] rot_amt;
+
+    
+  reg [2*WIDTH-1:0] mul_pipe_res_1;
+  reg [2*WIDTH-1:0] mul_pipe_res_2;
+
+    reg               mul_pipe_valid;
+    reg               mul_pipe_valid_1;
+
+
+    
+always @(posedge CLK or posedge RST)
+begin
+
+  
+    if(RST)
+    begin
+
+        r_INP_VALID <= 0;
+        r_MODE      <= 0;
+        r_CMD       <= 0;
+        r_OPA       <= 0;
+        r_OPB       <= 0;
+        r_CIN       <= 0;
+
+        RES         <= 0;
+        ERR         <= 0;
+        OFLOW       <= 0;
+        COUT        <= 0;
+
+        G <= 0;
+        L <= 0;
+        E <= 0;
+
+        mul_pipe_res_1 <= 0;
+        mul_pipe_res_2 <= 0;
+
+        mul_pipe_valid   <= 0;
+        mul_pipe_valid_1 <= 0;
+
+    end
+
+   
+
+    else if(CE)
+    begin
+
+
+        r_INP_VALID <= INP_VALID;
+        r_MODE      <= MODE;
+        r_CMD       <= CMD;
+        r_OPA       <= OPA;
+        r_OPB       <= OPB;
+        r_CIN       <= CIN;
+
+      
+
+        ERR     <= 0;
+        OFLOW   <= 0;
+        COUT    <= 0;
+
+        {G,L,E} <= `NONE;
+
+        
+      if(mul_pipe_valid && r_CMD == `MUL_INC)
+        begin
+
+            RES <= mul_pipe_res_1;
+
+            mul_pipe_valid <= 0;
+
         end
 
-        else if (CE) begin
+       
 
-            r_INP_VALID <= INP_VALID;
-            r_MODE      <= MODE;
-            r_CMD       <= CMD;
-            r_OPA       <= OPA;
-            r_OPB       <= OPB;
-            r_CIN       <= CIN;
+      else if(mul_pipe_valid_1 && r_CMD == `MUL_SHL)
+        begin
 
-            ERR     <= 0;
-            OFLOW   <= 0;
-            COUT    <= 0;
-            {G,L,E} <= `NONE;
+            RES <= mul_pipe_res_2;
 
-            if (mulinc_v1 && r_CMD == `MUL_INC) begin
-                RES       <= mulinc_s1;
-                mulinc_v1 <= 0;
-            end
-            else if (mulshl_v1 && r_CMD == `MUL_SHL) begin
-                RES       <= mulshl_s1;
-                mulshl_v1 <= 0;
-            end
+            mul_pipe_valid_1 <= 0;
 
-            else begin
+        end
 
-                if (r_MODE) begin
-                    case (r_CMD)
-                        `ADD: begin
-                            {COUT, RES[WIDTH-1:0]} <= (r_INP_VALID==`V_BOTH) ? (r_OPA + r_OPB) : {COUT, RES[WIDTH-1:0]};
-                            RES   <= (r_INP_VALID==`V_BOTH) ? (r_OPA + r_OPB) : RES;
-                            ERR   <= ~(r_INP_VALID==`V_BOTH);
-                        end
 
-                        `SUB: begin
-                            RES   <= (r_INP_VALID==`V_BOTH) ? (r_OPA - r_OPB) : RES;
-                            OFLOW <= (r_OPB > r_OPA);
-                            ERR   <= ~(r_INP_VALID==`V_BOTH);
-                        end
+            else
+            begin
 
-                        `ADD_CIN: begin
-                            {COUT, RES[WIDTH-1:0]} <= (r_INP_VALID==`V_BOTH) ? (r_OPA + r_OPB + r_CIN) : {COUT, RES[WIDTH-1:0]};
-                            RES   <= (r_INP_VALID==`V_BOTH) ? (r_OPA + r_OPB + r_CIN) : RES;
-                            ERR   <= ~(r_INP_VALID==`V_BOTH);
-                        end
+               
 
-                        `SUB_CIN: begin
-                            RES   <= (r_INP_VALID==`V_BOTH) ? (r_OPA - r_OPB - r_CIN) : RES;
-                            OFLOW <= ({1'b0,r_OPA} < ({1'b0,r_OPB} + r_CIN));
-                            ERR   <= ~(r_INP_VALID==`V_BOTH);
-                        end
+                if(r_MODE)
+                begin
 
-                        `INC_A: begin
-                            RES <= (r_INP_VALID==`V_BOTH || r_INP_VALID==`V_A) ? r_OPA+1 : RES;
-                            ERR <= ~(r_INP_VALID==`V_BOTH || r_INP_VALID==`V_A);
-                        end
-
-                        `DEC_A: begin
-                            RES <= (r_INP_VALID==`V_BOTH || r_INP_VALID==`V_A) ? r_OPA-1 : RES;
-                            ERR <= ~(r_INP_VALID==`V_BOTH || r_INP_VALID==`V_A);
-                        end
-
-                        `INC_B: begin
-                            RES <= (r_INP_VALID==`V_BOTH || r_INP_VALID==`V_B) ? r_OPB+1 : RES;
-                            ERR <= ~(r_INP_VALID==`V_BOTH || r_INP_VALID==`V_B);
-                        end
-
-                        `DEC_B: begin
-                            RES <= (r_INP_VALID==`V_BOTH || r_INP_VALID==`V_B) ? r_OPB-1 : RES;
-                            ERR <= ~(r_INP_VALID==`V_BOTH || r_INP_VALID==`V_B);
-                        end
-
-                        `CMP: begin
-                            RES     <= 0;
-                            {G,L,E} <= {(r_OPA>r_OPB),(r_OPA<r_OPB),(r_OPA==r_OPB)};
-                            ERR     <= ~(r_INP_VALID==`V_BOTH);
-                        end
-
-                        `MUL_INC: begin
-                            if (r_INP_VALID==`V_BOTH) begin
-                            ERR <= 0;
-
-                                mulinc_s1 <= (r_OPA+1)*(r_OPB+1);
-                                mulinc_v1 <= 1;
-                              RES   <= {(2*WIDTH){1'b0}};
-                            end else ERR <= 1;
-                        end
-
-                        `MUL_SHL: begin
-                            if (r_INP_VALID==`V_BOTH) begin
-                                ERR <= 0;
-                                mulshl_s1 <= (r_OPA<<1)*r_OPB;
-                                mulshl_v1 <= 1;
-                              RES   <= {(2*WIDTH){1'b0}};
-
-                            end else ERR <= 1;
-                        end
-
-                        `SADD: begin
-                            if (r_INP_VALID == `V_BOTH) begin
-                                signed_result = $signed({1'b0,r_OPA}) + $signed({1'b0,r_OPB});
-                                RES   <= {{WIDTH{signed_result[WIDTH-1]}},signed_result[WIDTH-1:0]};
-                                OFLOW <= (r_OPA[WIDTH-1]==r_OPB[WIDTH-1]) &&
-                                         (signed_result[WIDTH-1]!=r_OPA[WIDTH-1]);
-                                G <= ($signed(r_OPA) >  $signed(r_OPB));
-                                L <= ($signed(r_OPA) <  $signed(r_OPB));
-                                E <= ($signed(r_OPA) == $signed(r_OPB));
-                            end else begin
-                                RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
-                            end
-                            ERR <= ~(r_INP_VALID==`V_BOTH);
-                        end
-
-                        `SSUB: begin
-                            if (r_INP_VALID == `V_BOTH) begin
-                                signed_result = $signed({1'b0,r_OPA}) - $signed({1'b0,r_OPB});
-                                RES   <= {{WIDTH{signed_result[WIDTH-1]}},signed_result[WIDTH-1:0]};
-                                OFLOW <= (r_OPA[WIDTH-1]!=r_OPB[WIDTH-1]) &&
-                                         (signed_result[WIDTH-1]!=r_OPA[WIDTH-1]);
-                                G <= ($signed(r_OPA) >  $signed(r_OPB));
-                                L <= ($signed(r_OPA) <  $signed(r_OPB));
-                                E <= ($signed(r_OPA) == $signed(r_OPB));
-                            end else begin
-                                RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
-                            end
-                            ERR <= ~(r_INP_VALID==`V_BOTH);
-                        end
-
-                        default: begin
-                            RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
-                            ERR <=1;
-
-                        end 
-
-                    endcase
-                end
-
-                else begin
-                    case (r_CMD)
-                        `AND:    begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?(r_OPA&r_OPB)  :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
-                        `NAND:   begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?~(r_OPA&r_OPB) :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
-                        `OR:     begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?(r_OPA|r_OPB)  :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
-                        `NOR:    begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?~(r_OPA|r_OPB) :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
-                        `XOR:    begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?(r_OPA^r_OPB)  :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
-                        `XNOR:   begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH)?~(r_OPA^r_OPB) :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH);end
-                        `NOT_A:  begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A)?~r_OPA  :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A);end
-                        `NOT_B:  begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B)?~r_OPB  :0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B);end
-                        `SHR1_A: begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A)?r_OPA>>1:0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A);end
-                        `SHL1_A: begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A)?r_OPA<<1:0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_A);end
-                        `SHR1_B: begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B)?r_OPB>>1:0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B);end
-                        `SHL1_B: begin RES[WIDTH-1:0]<=(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B)?r_OPB<<1:0; RES[2*WIDTH-1:WIDTH]<=0; OFLOW<=0;COUT<=0;{G,L,E}<=`NONE;ERR<=~(r_INP_VALID==`V_BOTH||r_INP_VALID==`V_B);end
+                    case(r_CMD)
 
                        
+                        `ADD:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                            begin
+
+                                temp_sum = r_OPA + r_OPB;
+
+                                COUT <= temp_sum[WIDTH];
+
+                                RES <= temp_sum;
+                                
+
+                            end
+
+                            else
+                                ERR <= 1;
+
+                        end
+
+                        `SUB:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                            begin
+
+                              RES <= ({8'h00,r_OPA} - {8'h00,r_OPB});
+                               OFLOW <= (r_OPB > r_OPA);
+
+                            end
+
+                            else begin
+                                ERR <= 1;
+                                OFLOW <= 0;
+                            end
+
+
+                        end
+
+                      
+                        `ADD_CIN:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                            begin
+
+                                temp_sum = r_OPA + r_OPB + r_CIN;
+
+                                COUT <= temp_sum[WIDTH];
+
+                                RES <= temp_sum;
+                              
+                                OFLOW <= 0;
+                               
+                            end
+
+                            else begin
+                                ERR <= 1;
+                                OFLOW <= 0;
+                            end
+
+                        end
+
+                        `SUB_CIN:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                            begin
+
+                                RES <=
+                                {{WIDTH{1'b0}},r_OPA} -
+                                {{WIDTH{1'b0}},r_OPB} -
+                                r_CIN;
+
+                                OFLOW <=
+                                ({1'b0,r_OPA} <
+                                ({1'b0,r_OPB}+r_CIN));
+
+                            end
+
+                            else begin
+                                ERR <= 1;
+                          OFLOW <=
+                                ({1'b0,r_OPA} <
+                                ({1'b0,r_OPB}+r_CIN));
+                            end
+                        end
+
+                        
+                        `INC_A:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH ||
+                               r_INP_VALID == `V_A)
+
+                                RES <= r_OPA + 1'b1;
+
+                            else
+                                ERR <= 1;
+
+                        end
+
+                        `DEC_A:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH ||
+                               r_INP_VALID == `V_A)
+
+                                RES <= r_OPA - 1'b1;
+
+                            else
+                                ERR <= 1;
+
+                        end
+
+                        `INC_B:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH ||
+                               r_INP_VALID == `V_B)
+
+                                RES <= r_OPB + 1'b1;
+
+                            else
+                                ERR <= 1;
+
+                        end
+
+                       
+
+                        `DEC_B:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH ||
+                               r_INP_VALID == `V_B)
+
+                                RES <= r_OPB - 1'b1;
+
+                            else
+                                ERR <= 1;
+
+                        end
+
+
+                        `CMP:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                            begin
+
+                                RES <= 0;
+
+                                G <= (r_OPA > r_OPB);
+                                L <= (r_OPA < r_OPB);
+                                E <= (r_OPA == r_OPB);
+
+                            end
+
+                            else
+                                ERR <= 1;
+                                 RES <= 0;
+ 
+
+                        end
+
+                        
+
+                        `MUL_INC:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                            begin
+
+                                mul_pipe_res_1 <=
+                                (r_OPA + 1) * (r_OPB + 1);
+
+                                mul_pipe_valid <= 1;
+
+                                RES <= {2*WIDTH{1'bx}};
+
+                            end
+
+                            else
+                                ERR <= 1;
+                                RES <= {2*WIDTH{1'bx}};
+
+                        end
+
+                        
+
+                        `MUL_SHL:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                            begin
+
+                                mul_pipe_res_2 <=
+                                (r_OPA << 1) * r_OPB;
+
+                                mul_pipe_valid_1 <= 1;
+
+                                RES <= {2*WIDTH{1'bx}};
+
+                            end
+
+                            else
+                                ERR <= 1;
+                           RES <= {2*WIDTH{1'bx}};
+
+                        end
+
+                        
+
+                        `SADD:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                            begin
+
+                                signed_result =
+                                $signed({1'b0,r_OPA}) +
+                                $signed({1'b0,r_OPB});
+
+                                RES <=
+                                {{WIDTH{signed_result[WIDTH-1]}},
+                                  signed_result[WIDTH-1:0]};
+
+                                OFLOW <=
+                                (r_OPA[WIDTH-1] ==
+                                 r_OPB[WIDTH-1]) &&
+
+                                (signed_result[WIDTH-1] !=
+                                 r_OPA[WIDTH-1]);
+
+                                COUT <= 0;
+
+                                G <=
+                                ($signed(r_OPA) >
+                                 $signed(r_OPB));
+
+                                L <=
+                                ($signed(r_OPA) <
+                                 $signed(r_OPB));
+
+                                E <=
+                                ($signed(r_OPA) ==
+                                 $signed(r_OPB));
+
+                            end
+
+                            else begin
+                                ERR <= 1;
+                                RES <= {2*WIDTH{1'bx}};
+                            end
+                               
+
+                        end
+
+                        
+
+                        `SSUB:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                            begin
+
+                                signed_result =
+                                $signed({1'b0,r_OPA}) -
+                                $signed({1'b0,r_OPB});
+
+                               RES   <= {{WIDTH{signed_result[WIDTH-1]}},signed_result[WIDTH-1:0]};
+
+                                OFLOW <=
+                                (r_OPA[WIDTH-1] !=
+                                 r_OPB[WIDTH-1]) &&
+
+                                (signed_result[WIDTH-1] !=
+                                 r_OPA[WIDTH-1]);
+
+                                COUT <= 0;
+
+                                G <=
+                                ($signed(r_OPA) >
+                                 $signed(r_OPB));
+
+                                L <=
+                                ($signed(r_OPA) <
+                                 $signed(r_OPB));
+
+                                E <=
+                                ($signed(r_OPA) ==
+                                 $signed(r_OPB));
+
+                            end
+
+                            else begin
+                                ERR <= 1;
+                                 RES <= {2*WIDTH{1'bx}};
+                             end
+                        end
+
+                        default:
+                        begin
+
+                            RES <= 0;
+                            ERR <= 1;
+
+                        end
+
+                    endcase
+
+                end
+
+                // =================================================
+                // LOGIC MODE
+                // =================================================
+
+                else
+                begin
+
+                    case(r_CMD)
+
+                        `AND:
+                        begin
+
+                          if(r_INP_VALID == `V_BOTH) begin
+                              RES[WIDTH-1:0] <= (r_OPA & r_OPB);
+                          end
+
+                            else begin
+                                ERR <= 1;
+                                RES <= 0;
+                            end
+
+                        end
+
+                        `NAND:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                                RES[WIDTH-1:0] <= ~(r_OPA & r_OPB);
+
+                            else begin
+                                ERR <= 1;
+                                RES <= 0;
+                            end
+
+
+                        end
+
+                        `OR:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                                RES[WIDTH-1:0] <= r_OPA | r_OPB;
+
+                            else begin
+                                ERR <= 1;
+                                RES <= 0;
+                            end
+
+                        end
+
+                        `NOR:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                                RES[WIDTH-1:0] <= ~(r_OPA | r_OPB);
+
+                            else begin
+                                ERR <= 1;
+                                RES <= 0;
+                            end
+
+                        end
+
+                        `XOR:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                                RES[WIDTH-1:0] <= r_OPA ^ r_OPB;
+
+                            else begin
+                                ERR <= 1;
+                               RES <= 0;
+                            end
+                        end
+
+                        `XNOR:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH)
+                                RES[WIDTH-1:0] <= ~(r_OPA ^ r_OPB);
+
+                            else begin
+                                ERR <= 1;
+                                 RES <= 0;
+                            end
+
+
+                        end
+
+                        `NOT_A:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH ||
+                               r_INP_VALID == `V_A)
+
+                                RES[WIDTH-1:0] <= ~r_OPA;
+
+                            else begin
+                                ERR <= 1;
+                                RES <= 0;
+                            end
+
+                        end
+
+                        `NOT_B:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH ||
+                               r_INP_VALID == `V_B)
+
+                                RES[WIDTH-1:0] <= ~r_OPB;
+
+                            else begin
+                                ERR <= 1;
+                                RES <= 0;
+                            end
+
+
+                        end
+
+                        `SHR1_A:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH ||
+                               r_INP_VALID == `V_A)
+
+                                RES[WIDTH-1:0] <= r_OPA >> 1;
+
+                            else begin
+                                ERR <= 1;
+                                RES <= 0;
+                            end
+
+
+                        end
+
+                        `SHL1_A:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH ||
+                               r_INP_VALID == `V_A)
+
+                                RES[WIDTH-1:0] <= r_OPA << 1;
+
+                            else begin
+                                ERR <= 1;
+                                RES <= 0;
+                            end
+
+
+                        end
+
+                        `SHR1_B:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH ||
+                               r_INP_VALID == `V_B)
+
+                                RES[WIDTH-1:0] <= r_OPB >> 1;
+
+                            else begin
+                                ERR <= 1;
+                                RES <= 0;
+                            end
+
+
+                        end
+
+                        `SHL1_B:
+                        begin
+
+                            if(r_INP_VALID == `V_BOTH ||
+                               r_INP_VALID == `V_B)
+
+                                RES[WIDTH-1:0] <= r_OPB << 1;
+
+                            else begin
+                                ERR <= 1;
+                                RES <= 0;
+                            end
+
+
+                        end
+
+                        // --------------------------------------------
+                        // ROL
+                        // --------------------------------------------
+
+                      
                           `ROL_A_B: begin
                             rot_amt = r_OPB[WID-1:0];
 
@@ -331,14 +762,26 @@ module ALU_DESIGN #(parameter WIDTH = 8)
 
 
 
-                        default: begin
-                            RES<=0; COUT<=0; OFLOW<=0; {G,L,E}<=`NONE;
-                            ERR <=1;
+                        default:
+                        begin
+
+                            RES <= {2*WIDTH{1'bx}};
+                            ERR <= 1;
+
                         end
+
                     endcase
-                end 
+                  
+
+                end
+              
+
             end
+
         end
+     
+
     end
+  
+
 endmodule
-   
