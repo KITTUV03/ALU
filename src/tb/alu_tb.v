@@ -118,8 +118,12 @@ module tb;
     reg                    r_CIN;
     reg                    r_CE;
 
-    reg  [2*`WIDTH-1:0]    mul_s1_res;
+  reg  [2*`WIDTH-1:0]    mul_s1_res_1;
+  reg  [2*`WIDTH-1:0]    mul_s1_res_2;
+
     reg                    mul_s1_valid;
+    reg                    mul_s1_valid_1;
+
     reg  [`OPERATION-1:0]  mul_s1_cmd;
 
     reg signed [2*`WIDTH-1:0] ref_signed;
@@ -129,7 +133,7 @@ module tb;
     integer cmd_i;
 
 
-    ALU_DESIGN #(.WIDTH(`WIDTH)) dut (
+    ALU_DESIGN  dut (
         .CLK      (CLK),
         .RST      (RST),
         .INP_VALID(INP_VALID),
@@ -170,6 +174,8 @@ module tb;
     end
     endtask
 
+  
+  
 
     task valid_arithmetic_inputs;
     begin
@@ -389,7 +395,7 @@ module tb;
             OPB = `RAND_RANGE(0,255);
             CMD = cmd_i;
             CIN = $random;
-            INP_VALID = `RAND_RANGE(0,1);
+            INP_VALID = $random;
             `CLOCK_DELAY;
         end
       end
@@ -402,7 +408,7 @@ module tb;
             OPB = `RAND_RANGE(0,255);
             CMD = cmd_i;
             CIN = $random;
-            INP_VALID = `RAND_RANGE(0,2);
+            INP_VALID = $random;
             `CLOCK_DELAY;
         end
       end
@@ -501,30 +507,6 @@ end
     endtask
 
 
-    always @(posedge CLK or posedge RST)
-    begin
-        if(RST)
-        begin
-            r_INP_VALID <= 0;
-            r_MODE      <= 0;
-            r_CMD       <= 0;
-            r_OPA       <= 0;
-            r_OPB       <= 0;
-            r_CIN       <= 0;
-            r_CE        <= 0;
-        end
-        else
-        begin
-            r_INP_VALID <= INP_VALID;
-            r_MODE      <= MODE;
-            r_CMD       <= CMD;
-            r_OPA       <= OPA;
-            r_OPB       <= OPB;
-            r_CIN       <= CIN;
-            r_CE        <= CE;
-        end
-    end
-
 
     always @(posedge CLK or posedge RST) begin
         if (RST) begin
@@ -555,26 +537,48 @@ end
             EXP_G        <= 0;
             EXP_L        <= 0;
             EXP_E        <= 0;
-            mul_s1_res   <= 0;
+            mul_s1_res_1   <= 0;
+            mul_s1_res_2   <= 0;
             mul_s1_valid <= 0;
+            mul_s1_valid_1 <= 0;
             mul_s1_cmd   <= 0;
         end else if (r_CE) begin
+            EXP_RES    <= 0;
+            EXP_ERR    <= 0;
+            EXP_OFLOW  <= 0;
+            EXP_COUT   <= 0;
 
-            EXP_ERR   <= 0;
-            EXP_OFLOW <= 0;
-            EXP_COUT  <= 0;
-            {EXP_G, EXP_L, EXP_E} <= `NONE;
+            {EXP_G,EXP_L,EXP_E} <= `NONE;
 
-            if (mul_s1_valid && r_CMD == `MUL_INC) begin
-                EXP_RES      <= mul_s1_res;
-                mul_s1_valid <= 0;
-            end else if (mul_s1_valid && r_CMD == `MUL_SHL) begin
-                EXP_RES      <= mul_s1_res;
-                mul_s1_valid <= 0;
-            end else begin
+            
+          if(mul_s1_valid && r_CMD == `MUL_INC)
+        begin
+
+            EXP_RES <= mul_s1_res_1;
+
+            mul_s1_valid <= 0;
+
+        end
+
+        // ====================================================
+        // PIPELINE RESULT : MUL_SHL
+        // ====================================================
+
+          else if(mul_s1_valid_1 && r_CMD == `MUL_SHL)
+        begin
+
+            EXP_RES <= mul_s1_res_2;
+
+            mul_s1_valid_1 <= 0;
+
+        end
+          
+            
+      else begin
+        EXP_ERR <= 0;
                  if (r_MODE) begin
                     case (r_CMD)
-
+                    
                         `ADD: begin
                             {EXP_COUT, EXP_RES[`WIDTH-1:0]} <=
                                 (r_INP_VALID==`V_BOTH) ? (r_OPA + r_OPB)
@@ -585,7 +589,14 @@ end
 //                             EXP_RES[2*`WIDTH-1:`WIDTH] <= 0;
                             EXP_OFLOW <= 0;
                             {EXP_G, EXP_L, EXP_E} <= `NONE;
-                            EXP_ERR <= ~(r_INP_VALID==`V_BOTH);
+                          EXP_ERR <= !(r_INP_VALID ==`V_BOTH);
+                          
+                          if(!(r_INP_VALID == `V_BOTH ))
+                             begin
+                               EXP_COUT <= 0;
+                               EXP_RES  <= EXP_RES;
+                             end
+                          
                         end
 
                         `SUB: begin
@@ -594,6 +605,11 @@ end
                             EXP_COUT  <= 0;
                             {EXP_G, EXP_L, EXP_E} <= `NONE;
                             EXP_ERR <= ~(r_INP_VALID==`V_BOTH);
+                          
+                           if(!(r_INP_VALID == `V_BOTH ))
+                             begin
+                               EXP_OFLOW <= 0;
+                             end
                         end
 
                         `ADD_CIN: begin
@@ -657,22 +673,31 @@ end
                             EXP_RES   <= 0;
                             EXP_COUT  <= 0;
                             EXP_OFLOW <= 0;
-                            {EXP_G, EXP_L, EXP_E} <= {(r_OPA>r_OPB),(r_OPA<r_OPB),(r_OPA==r_OPB)};
-                            EXP_ERR   <= ~(r_INP_VALID==`V_BOTH);
+                           {EXP_G, EXP_L, EXP_E} <= {(r_OPA>r_OPB),(r_OPA<r_OPB),(r_OPA==r_OPB)};
+                          if(~(r_INP_VALID==`V_BOTH)) begin
+                            {EXP_G, EXP_L, EXP_E} <= `NONE;
+                            EXP_ERR   <= 1;
+                          end
+                          
                         end
 
                         `MUL_INC: begin
                             if (r_INP_VALID==`V_BOTH) begin
-                                mul_s1_res   <= (r_OPA+1)*(r_OPB+1);
+                                mul_s1_res_1   <= (r_OPA+1)*(r_OPB+1);
                                 mul_s1_valid <= 1;
                                 mul_s1_cmd   <= `MUL_INC;
                               {EXP_G,EXP_L,EXP_E} <= `NONE;
-                              EXP_RES <= {2*`WIDTH{1'b0}};            //chnage
+                              EXP_RES <= {2*`WIDTH{1'bx}};  
+                              EXP_COUT  <= 0;
+                              EXP_OFLOW <= 0;//chnage
 
-
+ 
                             end else begin
                                 EXP_ERR <= 1;
-                              EXP_RES <= {2*`WIDTH{1'b0}};
+                              EXP_RES <= {2*`WIDTH{1'bx}};
+                              EXP_COUT  <= 0;
+                              EXP_OFLOW <= 0;//chnage
+
 
                             end
                         end
@@ -680,14 +705,20 @@ end
                         `MUL_SHL: begin
 
                             if (r_INP_VALID==`V_BOTH) begin
-                                mul_s1_res   <= (r_OPA<<1)*r_OPB;
-                                mul_s1_valid <= 1;
+                                mul_s1_res_2   <= (r_OPA<<1)*r_OPB;
+                                mul_s1_valid_1 <= 1;
                                 mul_s1_cmd   <= `MUL_SHL;
                                 {EXP_G,EXP_L,EXP_E} <= `NONE;
-                              EXP_RES <= {2*`WIDTH{1'b0}}; //chnage
+                              EXP_RES <= {2*`WIDTH{1'bx}}; //chnage
+                              EXP_COUT  <= 0;
+                              EXP_OFLOW <= 0;//chnage
+
                                 end else begin
                                 EXP_ERR <= 1;
-                                  EXP_RES <= {2*`WIDTH{1'b0}};
+                                  EXP_RES <= {2*`WIDTH{1'bx}};
+                                  EXP_COUT  <= 0;
+                              EXP_OFLOW <= 0;//chnage
+
 
                             end
                         end
@@ -703,7 +734,7 @@ end
                                 EXP_L     <= ($signed(r_OPA) <  $signed(r_OPB));
                                 EXP_E     <= ($signed(r_OPA) == $signed(r_OPB));
                             end else begin
-                                EXP_RES   <= 0;
+                                EXP_RES   <= {2*`WIDTH{1'bx}};;
                                 EXP_COUT  <= 0;
                                 EXP_OFLOW <= 0;
                                 {EXP_G, EXP_L, EXP_E} <= `NONE;
@@ -722,7 +753,7 @@ end
                                 EXP_L     <= ($signed(r_OPA) <  $signed(r_OPB));
                                 EXP_E     <= ($signed(r_OPA) == $signed(r_OPB));
                             end else begin
-                                EXP_RES   <= 0;
+                                EXP_RES   <= {2*`WIDTH{1'bx}};;
                                 EXP_COUT  <= 0;
                                 EXP_OFLOW <= 0;
                                 {EXP_G, EXP_L, EXP_E} <= `NONE;
@@ -733,6 +764,8 @@ end
                         default: begin
                             EXP_RES   <= 0;
                             EXP_COUT  <= 0;
+                            EXP_ERR   <= 1;
+
                             EXP_OFLOW <= 0;
                             {EXP_G, EXP_L, EXP_E} <= `NONE;
                         end
@@ -742,14 +775,21 @@ end
                 end else begin
 
                     case (r_CMD)
-                      
-                        `AND: begin
-                            EXP_RES[`WIDTH-1:0]        <= (r_INP_VALID==`V_BOTH) ? (r_OPA & r_OPB) : 0;
-                            EXP_RES[2*`WIDTH-1:`WIDTH] <= 0;
-                            EXP_OFLOW <= 0; EXP_COUT <= 0; {EXP_G,EXP_L,EXP_E} <= `NONE;
-                            EXP_ERR   <= ~(r_INP_VALID==`V_BOTH);
-                        end
+                      `AND:
+                        begin
 
+                          if(r_INP_VALID == `V_BOTH) begin
+                              EXP_RES[WIDTH-1:0] <= (r_OPA & r_OPB);
+                          end
+
+                            else begin
+                                EXP_ERR <= 1;
+                                EXP_RES <= 0;
+                            end
+
+                        end
+                      
+                      
                         `NAND: begin
                             EXP_RES[`WIDTH-1:0]        <= (r_INP_VALID==`V_BOTH) ? ~(r_OPA & r_OPB) : 0;
                             EXP_RES[2*`WIDTH-1:`WIDTH] <= 0;
@@ -851,33 +891,44 @@ end
                         end
 
 
-                           `ROR_A_B: begin
+                          `ROR_A_B:
+                      begin
 
-                                rot_amt = r_OPB[`WID-1:0];
+                          rot_amt = r_OPB[`WID-1:0];
 
-                             if (|r_OPB[`WIDTH-1:`WID+1]) begin
-                                    EXP_ERR <= 1;
-                                    EXP_RES <= 0;
-                             end
+                          if(|r_OPB[`WIDTH-1:`WID+1])
+                          begin
 
-                                else
+                              EXP_ERR <= 1;
+                              EXP_RES <= 0;
 
-                                EXP_RES[`WIDTH-1:0] <=
-                                    (r_OPA >> rot_amt) |
-                                    (r_OPA << (`WIDTH - rot_amt));
+                          end
 
-                                EXP_RES[2*`WIDTH-1:`WIDTH] <= 0;
+                          else
+                          begin
 
-                                EXP_OFLOW <= 0;
-                                EXP_COUT  <= 0;
-                                {EXP_G,EXP_L,EXP_E} <= `NONE;
-                            end
+                              EXP_ERR <= 0;
 
+                              EXP_RES[`WIDTH-1:0] <=
+                                  (r_OPA >> rot_amt) |
+                                  (r_OPA << (`WIDTH - rot_amt));
+
+                              EXP_RES[2*`WIDTH-1:`WIDTH] <= 0;
+
+                          end
+
+                          EXP_OFLOW <= 0;
+                          EXP_COUT  <= 0;
+
+                          {EXP_G,EXP_L,EXP_E} <= `NONE;
+
+                      end
 
                         default: begin
-                            EXP_RES   <= 0;
+                            EXP_RES   <=  {2*WIDTH{1'bx}};;
                             EXP_COUT  <= 0;
                             EXP_OFLOW <= 0;
+                            EXP_ERR   <= 1;
                             {EXP_G, EXP_L, EXP_E} <= `NONE;
                         end
 
@@ -885,55 +936,60 @@ end
                 end
             end
         end
+//      
     end
 
-    always @(negedge CLK) begin
-        if (!RST && r_CE) begin
-            #1;
+   always @(negedge CLK)
+     begin
+       if (!RST && r_CE)
+     begin
+     //  #1;
 
-            if (RES !== EXP_RES)
-				$display("@%0t | MODE=%b CMD=%02h OPA=%0d OPB=%0d | RES=%0d  EXP_RES=%0d",
-                         "FAIL", $time, r_MODE, r_CMD, r_OPA, r_OPB, RES, EXP_RES);
-            else
-				$display(" @%0t | MODE=%b CMD=%0h OPA=%0d OPB=%0d | RES=%0d",
-                         "PASS", $time, r_MODE, r_CMD, r_OPA, r_OPB, RES);
+       if (RES !== EXP_RES)
+    $display("%-6s  @%0t | MODE=%b CMD=%02h OPA=%3d OPB=%3d | RES=%0d  EXP_RES=%0d",
+             "FAIL", $time, r_MODE, r_CMD, r_OPA, r_OPB, RES, EXP_RES);
+else
+    $display("%-6s  @%0t | MODE=%b CMD=%02h OPA=%3d OPB=%3d | RES=%0d",
+             "PASS", $time, r_MODE, r_CMD, r_OPA, r_OPB, RES);
 
-            if (ERR !== EXP_ERR)
-                $display("FAIL_ERR    @%0t | ERR=%b  EXP_ERR=%b",   $time, ERR,   EXP_ERR);
+if (ERR !== EXP_ERR)
+    $display("FAIL_ERR    @%0t | ERR=%b  EXP_ERR=%b",   $time, ERR,   EXP_ERR);
 
-            if (OFLOW !== EXP_OFLOW)
-                $display("FAIL_OFLOW  @%0t | OFLOW=%b EXP_OFLOW=%b",$time, OFLOW, EXP_OFLOW);
+if (OFLOW !== EXP_OFLOW)
+    $display("FAIL_OFLOW  @%0t | OFLOW=%b EXP_OFLOW=%b",$time, OFLOW, EXP_OFLOW);
 
-            if (COUT !== EXP_COUT)
-                $display("FAIL_COUT   @%0t | COUT=%b  EXP_COUT=%b", $time, COUT,  EXP_COUT);
+if (COUT !== EXP_COUT)
+    $display("FAIL_COUT   @%0t | COUT=%b  EXP_COUT=%b", $time, COUT,  EXP_COUT);
 
-            if ({G,L,E} !== {EXP_G,EXP_L,EXP_E})
-                $display("FAIL_GLE    @%0t | GLE=%b%b%b EXP=%b%b%b",
-                         $time, G,L,E, EXP_G,EXP_L,EXP_E);
+if ({G,L,E} !== {EXP_G,EXP_L,EXP_E})
+    $display("FAIL_GLE    @%0t | GLE=%b%b%b EXP=%b%b%b",
+             $time, G,L,E, EXP_G,EXP_L,EXP_E);
 
-            if (RES     === EXP_RES   &&
-                ERR     === EXP_ERR   &&
-                OFLOW   === EXP_OFLOW &&
-                COUT    === EXP_COUT  &&
-                {G,L,E} === {EXP_G,EXP_L,EXP_E})
-                pass_cnt = pass_cnt + 1;
-            else
-                fail_cnt = fail_cnt + 1;
-        end
-    end
+if (RES     === EXP_RES   &&
+    ERR     === EXP_ERR   &&
+    OFLOW   === EXP_OFLOW &&
+    COUT    === EXP_COUT  &&
+    {G,L,E} === {EXP_G,EXP_L,EXP_E})
+    pass_cnt = pass_cnt + 1;
+else
+    fail_cnt = fail_cnt + 1;
+
+end
+
+end
 
     initial begin
         pass_cnt = 0;
         fail_cnt = 0;
         reset;
-         valid_arithmetic_inputs;
-		  valid_logic_inputs;
-         unknown_input;
+		valid_logic_inputs;
+        valid_arithmetic_inputs;
+        //  unknown_input;
         clock_enable;
         invalid_input;
         reset;
         multiplication;
-       direct_cases;
+      direct_cases;
 
 
       repeat(3) `CLOCK_DELAY;
